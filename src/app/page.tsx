@@ -46,7 +46,7 @@ import {
   type WeekdayId,
 } from "@/lib/supabase/workspace";
 
-type ViewMode = "day" | "month";
+type ViewMode = "day" | "patients" | "month";
 type AuthMode = "signIn" | "signUp";
 
 type SessionOccurrence = {
@@ -1070,6 +1070,14 @@ export default function Home() {
             Agenda
           </button>
           <button
+            className={`sidebar-link ${viewMode === "patients" ? "sidebar-link-active" : ""}`}
+            type="button"
+            onClick={() => setViewMode("patients")}
+          >
+            <UserRound size={19} aria-hidden="true" />
+            Pacientes
+          </button>
+          <button
             className={`sidebar-link ${viewMode === "month" ? "sidebar-link-active" : ""}`}
             type="button"
             onClick={() => setViewMode("month")}
@@ -1353,6 +1361,12 @@ export default function Home() {
                   onEditSession={editSession}
                   onSetOccurrenceStatus={setOccurrenceStatus}
                 />
+              ) : viewMode === "patients" ? (
+                <PatientsView
+                  month={selectedMonth}
+                  occurrences={allOccurrences}
+                  showValues={showValues}
+                />
               ) : (
                 <MonthView
                   month={selectedMonth}
@@ -1618,6 +1632,14 @@ export default function Home() {
           <span>Agenda</span>
         </button>
         <button
+          className={viewMode === "patients" ? "mobile-nav-active" : ""}
+          type="button"
+          onClick={() => setViewMode("patients")}
+        >
+          <UserRound size={20} aria-hidden="true" />
+          <span>Pacientes</span>
+        </button>
+        <button
           className="mobile-add-button"
           type="button"
           onClick={openNewSessionForm}
@@ -1818,6 +1840,191 @@ function DayView({
                           Nenhuma data deste atendimento cai no mês selecionado.
                         </p>
                       )}
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PatientsView({
+  month,
+  occurrences,
+  showValues,
+}: {
+  month: string;
+  occurrences: SessionOccurrence[];
+  showValues: boolean;
+}) {
+  const [expandedPatientId, setExpandedPatientId] = useState<string | null>(
+    null,
+  );
+  const patientGroups = useMemo(() => {
+    const groupedOccurrences = new Map<string, SessionOccurrence[]>();
+
+    occurrences.forEach((occurrence) => {
+      const patientOccurrences =
+        groupedOccurrences.get(occurrence.session.patientId) ?? [];
+      patientOccurrences.push(occurrence);
+      groupedOccurrences.set(occurrence.session.patientId, patientOccurrences);
+    });
+
+    return Array.from(groupedOccurrences.entries())
+      .map(([patientId, patientOccurrences]) => ({
+        patientId,
+        patientName: patientOccurrences[0].session.patientName,
+        occurrences: patientOccurrences,
+        totals: summarizeOccurrences(patientOccurrences),
+      }))
+      .sort((first, second) =>
+        first.patientName.localeCompare(second.patientName, "pt-BR"),
+      );
+  }, [occurrences]);
+
+  return (
+    <>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-[-0.02em] text-[#183a33]">
+            Pacientes
+          </h2>
+          <p className="mt-1 text-sm capitalize text-[#71847f]">
+            {getMonthLabel(month)} · sessões e valores agrupados
+          </p>
+        </div>
+        <span className="hidden rounded-full bg-[#e8f4f0] px-3 py-1.5 text-xs font-bold text-[#247866] sm:inline-flex">
+          {patientGroups.length}{" "}
+          {patientGroups.length === 1 ? "paciente" : "pacientes"}
+        </span>
+      </div>
+
+      {patientGroups.length === 0 ? (
+        <EmptyState text="Cadastre sessões para visualizar o resumo financeiro por paciente." />
+      ) : (
+        <div className="grid gap-3">
+          {patientGroups.map((patient) => {
+            const isExpanded = expandedPatientId === patient.patientId;
+
+            return (
+              <article
+                className="surface-card overflow-hidden"
+                key={patient.patientId}
+              >
+                <button
+                  className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-[#f8fbfa] sm:px-5"
+                  type="button"
+                  onClick={() =>
+                    setExpandedPatientId((current) =>
+                      current === patient.patientId ? null : patient.patientId,
+                    )
+                  }
+                  aria-expanded={isExpanded}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f4f0] text-[#247866]">
+                      <UserRound size={19} aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-[#183a33]">
+                        {patient.patientName}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#71847f]">
+                        {patient.totals.completedSessions} realizadas ·{" "}
+                        {patient.occurrences.length} agendadas
+                      </span>
+                    </span>
+                  </span>
+
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="text-right">
+                      <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-[#899995]">
+                        Total cobrado
+                      </span>
+                      <span className="mt-1 block font-bold text-[#247866]">
+                        {formatCurrency(patient.totals.realized, showValues)}
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`text-[#71847f] transition ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
+                      size={18}
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+
+                {isExpanded ? (
+                  <div className="border-t border-[#e5ece9] bg-[#fbfdfc] px-4 py-4 sm:px-5">
+                    <div className="mb-4 flex flex-wrap gap-2 text-xs font-bold">
+                      <span className="rounded-full bg-[#e8f4f0] px-3 py-1.5 text-[#247866]">
+                        {patient.totals.completedSessions} feitas
+                      </span>
+                      <span className="rounded-full bg-[#fff7df] px-3 py-1.5 text-[#94670f]">
+                        {patient.totals.missedSessions} faltas
+                      </span>
+                      <span className="rounded-full bg-[#fff1ea] px-3 py-1.5 text-[#a45229]">
+                        {patient.totals.cancelledSessions} canceladas
+                      </span>
+                      <span className="rounded-full bg-[#eef3f1] px-3 py-1.5 text-[#627773]">
+                        {patient.totals.pendingSessions} pendentes
+                      </span>
+                    </div>
+
+                    <div className="grid gap-2">
+                      {patient.occurrences.map((occurrence) => {
+                        const statusLabel =
+                          occurrence.status === "completed"
+                            ? "Fez"
+                            : occurrence.status === "missed"
+                              ? "Faltou"
+                              : occurrence.status === "cancelled"
+                                ? "Cancelou"
+                                : "Pendente";
+                        const chargeLabel =
+                          occurrence.session.billingType === "monthly_fixed"
+                            ? "Inclusa no mensal"
+                            : occurrence.status === "completed" ||
+                                occurrence.status === "missed"
+                              ? formatCurrency(
+                                  occurrence.session.sessionValue,
+                                  showValues,
+                                )
+                              : occurrence.status === "cancelled"
+                                ? "Não cobrada"
+                                : "Pendente";
+
+                        return (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-xl border border-[#e3ebe8] bg-white px-3 py-3 sm:px-4"
+                            key={occurrence.id}
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-[#24443e]">
+                                {formatShortDate(occurrence.dateKey)} ·{" "}
+                                {occurrence.session.sessionTime}
+                              </p>
+                              <p className="mt-1 text-xs text-[#71847f]">
+                                {frequencyLabels[occurrence.session.frequency]} ·{" "}
+                                {billingTypeLabels[occurrence.session.billingType]}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-xs font-bold text-[#527069]">
+                                {statusLabel}
+                              </p>
+                              <p className="mt-1 text-xs text-[#82928e]">
+                                {chargeLabel}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}

@@ -331,7 +331,7 @@ button:disabled {
   left: 12px;
   display: grid;
   height: 68px;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   align-items: center;
   border: 1px solid rgba(214, 226, 222, 0.9);
   border-radius: 22px;
