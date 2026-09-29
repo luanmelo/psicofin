@@ -356,6 +356,10 @@ export default function Home() {
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [dataError, setDataError] = useState("");
+  const [sessionFormValidation, setSessionFormValidation] = useState<{
+    message: string;
+    fieldName: "patientName" | "sessionValue" | "startDate";
+  } | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
@@ -370,6 +374,7 @@ export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const formSectionRef = useRef<HTMLElement | null>(null);
+  const sessionFormRef = useRef<HTMLFormElement | null>(null);
   const monthInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -577,7 +582,27 @@ export default function Home() {
       ...initialSessionForm,
       startDate: formatDateKey(new Date()),
     });
+    setSessionFormValidation(null);
     setEditingSessionId(null);
+  }
+
+  function updateSessionForm(updates: Partial<SessionForm>) {
+    setSessionForm((current) => ({ ...current, ...updates }));
+    setSessionFormValidation(null);
+  }
+
+  function invalidateSessionForm(
+    message: string,
+    fieldName: "patientName" | "sessionValue" | "startDate",
+  ) {
+    setSessionFormValidation({ message, fieldName });
+    window.requestAnimationFrame(() => {
+      const field = sessionFormRef.current?.elements.namedItem(fieldName);
+
+      if (field instanceof HTMLElement) {
+        field.focus();
+      }
+    });
   }
 
   function scrollToSessionForm() {
@@ -614,16 +639,25 @@ export default function Home() {
   async function handleSessionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDataError("");
+    setSessionFormValidation(null);
 
     const sessionValue = parseCurrencyInput(sessionForm.sessionValue);
 
-    if (
-      !sessionForm.patientName.trim() ||
-      !sessionForm.sessionTime ||
-      !sessionForm.startDate ||
-      Number.isNaN(sessionValue) ||
-      sessionValue <= 0
-    ) {
+    if (!sessionForm.patientName.trim()) {
+      invalidateSessionForm("Informe o nome do paciente.", "patientName");
+      return;
+    }
+
+    if (Number.isNaN(sessionValue) || sessionValue <= 0) {
+      invalidateSessionForm(
+        "Informe um valor maior que zero.",
+        "sessionValue",
+      );
+      return;
+    }
+
+    if (!sessionForm.startDate) {
+      invalidateSessionForm("Informe a data da sessão.", "startDate");
       return;
     }
 
@@ -632,10 +666,7 @@ export default function Home() {
       return;
     }
 
-    const weekday =
-      sessionForm.frequency === "once"
-        ? getWeekdayFromDate(sessionForm.startDate)
-        : selectedWeekday;
+    const weekday = getWeekdayFromDate(sessionForm.startDate);
     const sessionInput = {
       patientId: sessionForm.patientId,
       patientName: sessionForm.patientName.trim(),
@@ -707,6 +738,7 @@ export default function Home() {
       frequency: session.frequency,
       startDate: session.startDate,
     });
+    setSessionFormValidation(null);
     setEditingSessionId(session.id);
     setIsFormOpen(true);
     scrollToSessionForm();
@@ -727,6 +759,7 @@ export default function Home() {
       frequency: "once",
       startDate: defaultDate,
     });
+    setSessionFormValidation(null);
     setEditingSessionId(null);
     setIsFormOpen(true);
     scrollToSessionForm();
@@ -1351,7 +1384,7 @@ export default function Home() {
                       <span className="mt-1 block text-xs text-[#71847f]">
                         {sessionForm.frequency === "once"
                           ? "Atendimento avulso"
-                          : `${getWeekdayLabel(selectedWeekday)} · ${frequencyLabels[sessionForm.frequency]}`}
+                          : `${getWeekdayLabel(getWeekdayFromDate(sessionForm.startDate))} · ${frequencyLabels[sessionForm.frequency]}`}
                       </span>
                     </span>
                   </span>
@@ -1366,21 +1399,40 @@ export default function Home() {
 
                 {isFormOpen ? (
                   <form
+                    ref={sessionFormRef}
                     className="space-y-4 border-t border-[#e5ece9] px-5 py-5"
                     onSubmit={handleSessionSubmit}
+                    noValidate
                   >
+                    {sessionFormValidation ? (
+                      <div
+                        id="session-form-error"
+                        className="rounded-xl border border-[#f0d5c7] bg-[#fff7f2] px-4 py-3 text-sm font-medium text-[#964b2d]"
+                        role="alert"
+                      >
+                        {sessionFormValidation.message}
+                      </div>
+                    ) : null}
+
                     <label className="block">
                       <span className="field-label">Paciente</span>
                       <input
                         className="field-control mt-2"
+                        name="patientName"
                         value={sessionForm.patientName}
                         onChange={(event) =>
-                          setSessionForm((current) => ({
-                            ...current,
-                            patientName: event.target.value,
-                          }))
+                          updateSessionForm({ patientName: event.target.value })
                         }
                         placeholder="Ex.: Ana Silva"
+                        aria-describedby={
+                          sessionFormValidation?.fieldName === "patientName"
+                            ? "session-form-error"
+                            : undefined
+                        }
+                        aria-invalid={
+                          sessionFormValidation?.fieldName === "patientName"
+                        }
+                        required
                       />
                     </label>
 
@@ -1390,10 +1442,9 @@ export default function Home() {
                         className="field-control mt-2"
                         value={sessionForm.billingType}
                         onChange={(event) =>
-                          setSessionForm((current) => ({
-                            ...current,
+                          updateSessionForm({
                             billingType: event.target.value as SessionBillingType,
-                          }))
+                          })
                         }
                       >
                         <option value="per_session">Por sessão</option>
@@ -1410,10 +1461,7 @@ export default function Home() {
                       <TimeSelect
                         value={sessionForm.sessionTime}
                         onChange={(sessionTime) =>
-                          setSessionForm((current) => ({
-                            ...current,
-                            sessionTime,
-                          }))
+                          updateSessionForm({ sessionTime })
                         }
                       />
 
@@ -1427,16 +1475,25 @@ export default function Home() {
                           className="field-control mt-2"
                           type="text"
                           inputMode="numeric"
+                          name="sessionValue"
                           value={sessionForm.sessionValue}
                           onChange={(event) =>
-                            setSessionForm((current) => ({
-                              ...current,
+                            updateSessionForm({
                               sessionValue: formatCurrencyInput(
                                 event.target.value,
                               ),
-                            }))
+                            })
                           }
                           placeholder="R$ 180,00"
+                          aria-describedby={
+                            sessionFormValidation?.fieldName === "sessionValue"
+                              ? "session-form-error"
+                              : undefined
+                          }
+                          aria-invalid={
+                            sessionFormValidation?.fieldName === "sessionValue"
+                          }
+                          required
                         />
                       </label>
                     </div>
@@ -1448,10 +1505,9 @@ export default function Home() {
                           className="field-control mt-2"
                           value={sessionForm.frequency}
                           onChange={(event) =>
-                            setSessionForm((current) => ({
-                              ...current,
+                            updateSessionForm({
                               frequency: event.target.value as SessionFrequency,
-                            }))
+                            })
                           }
                         >
                           <option value="weekly">Semanal</option>
@@ -1469,13 +1525,20 @@ export default function Home() {
                         <input
                           className="field-control mt-2"
                           type="date"
+                          name="startDate"
                           value={sessionForm.startDate}
                           onChange={(event) =>
-                            setSessionForm((current) => ({
-                              ...current,
-                              startDate: event.target.value,
-                            }))
+                            updateSessionForm({ startDate: event.target.value })
                           }
+                          aria-describedby={
+                            sessionFormValidation?.fieldName === "startDate"
+                              ? "session-form-error"
+                              : undefined
+                          }
+                          aria-invalid={
+                            sessionFormValidation?.fieldName === "startDate"
+                          }
+                          required
                         />
                       </label>
                     </div>

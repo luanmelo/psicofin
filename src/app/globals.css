@@ -122,6 +122,11 @@ button:disabled {
   box-shadow: 0 0 0 4px rgba(43, 138, 120, 0.1);
 }
 
+.field-control[aria-invalid="true"] {
+  border-color: #cf7c4b;
+  box-shadow: 0 0 0 4px rgba(207, 124, 75, 0.12);
+}
+
 .primary-button,
 .secondary-button,
 .action-button {
