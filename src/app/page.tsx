@@ -376,6 +376,7 @@ export default function Home() {
   const formSectionRef = useRef<HTMLElement | null>(null);
   const sessionFormRef = useRef<HTMLFormElement | null>(null);
   const monthInputRef = useRef<HTMLInputElement | null>(null);
+  const workspaceViewRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -618,6 +619,16 @@ export default function Home() {
     resetSessionForm();
     setIsFormOpen(true);
     scrollToSessionForm();
+  }
+
+  function navigateToView(nextView: ViewMode) {
+    setViewMode(nextView);
+    window.setTimeout(() => {
+      workspaceViewRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
   }
 
   function openMonthPicker() {
@@ -1064,7 +1075,7 @@ export default function Home() {
           <button
             className={`sidebar-link ${viewMode === "day" ? "sidebar-link-active" : ""}`}
             type="button"
-            onClick={() => setViewMode("day")}
+            onClick={() => navigateToView("day")}
           >
             <LayoutDashboard size={19} aria-hidden="true" />
             Agenda
@@ -1072,7 +1083,7 @@ export default function Home() {
           <button
             className={`sidebar-link ${viewMode === "patients" ? "sidebar-link-active" : ""}`}
             type="button"
-            onClick={() => setViewMode("patients")}
+            onClick={() => navigateToView("patients")}
           >
             <UserRound size={19} aria-hidden="true" />
             Pacientes
@@ -1080,7 +1091,7 @@ export default function Home() {
           <button
             className={`sidebar-link ${viewMode === "month" ? "sidebar-link-active" : ""}`}
             type="button"
-            onClick={() => setViewMode("month")}
+            onClick={() => navigateToView("month")}
           >
             <CalendarDays size={19} aria-hidden="true" />
             Visão mensal
@@ -1298,11 +1309,12 @@ export default function Home() {
             </div>
           </section>
 
-          {viewMode === "day" ? (
-            <nav
-              className="weekday-scroll mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-[#dfe9e5] bg-white p-2 shadow-sm shadow-[#16483c]/[0.03]"
-              aria-label="Dias da semana"
-            >
+          <div className="scroll-mt-24" ref={workspaceViewRef}>
+            {viewMode === "day" ? (
+              <nav
+                className="weekday-scroll mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-[#dfe9e5] bg-white p-2 shadow-sm shadow-[#16483c]/[0.03]"
+                aria-label="Dias da semana"
+              >
               {weekdays.map((weekday) => {
                 const dayOccurrences = occurrencesByWeekday[weekday.id] ?? [];
                 const completedCount = dayOccurrences.filter(
@@ -1345,11 +1357,11 @@ export default function Home() {
                   </button>
                 );
               })}
-            </nav>
-          ) : null}
+              </nav>
+            ) : null}
 
-          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="min-w-0">
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="min-w-0">
               {viewMode === "day" ? (
                 <DayView
                   occurrences={selectedOccurrences}
@@ -1375,9 +1387,9 @@ export default function Home() {
                   onSetOccurrenceStatus={setOccurrenceStatus}
                 />
               )}
-            </section>
+              </section>
 
-            <aside className="space-y-5 xl:sticky xl:top-28">
+              <aside className="space-y-5 xl:sticky xl:top-28">
               <section
                 className="surface-card scroll-mt-24 overflow-hidden"
                 ref={formSectionRef}
@@ -1617,7 +1629,8 @@ export default function Home() {
                   você registra os atendimentos.
                 </div>
               </section>
-            </aside>
+              </aside>
+            </div>
           </div>
         </div>
       </div>
@@ -1626,7 +1639,7 @@ export default function Home() {
         <button
           className={viewMode === "day" ? "mobile-nav-active" : ""}
           type="button"
-          onClick={() => setViewMode("day")}
+          onClick={() => navigateToView("day")}
         >
           <LayoutDashboard size={20} aria-hidden="true" />
           <span>Agenda</span>
@@ -1634,7 +1647,7 @@ export default function Home() {
         <button
           className={viewMode === "patients" ? "mobile-nav-active" : ""}
           type="button"
-          onClick={() => setViewMode("patients")}
+          onClick={() => navigateToView("patients")}
         >
           <UserRound size={20} aria-hidden="true" />
           <span>Pacientes</span>
@@ -1652,7 +1665,7 @@ export default function Home() {
         <button
           className={viewMode === "month" ? "mobile-nav-active" : ""}
           type="button"
-          onClick={() => setViewMode("month")}
+          onClick={() => navigateToView("month")}
         >
           <CalendarDays size={20} aria-hidden="true" />
           <span>Mês</span>
@@ -1897,8 +1910,8 @@ function PatientsView({
             {getMonthLabel(month)} · sessões e valores agrupados
           </p>
         </div>
-        <span className="hidden rounded-full bg-[#e8f4f0] px-3 py-1.5 text-xs font-bold text-[#247866] sm:inline-flex">
-          {patientGroups.length}{" "}
+        <span className="inline-flex shrink-0 rounded-full bg-[#e8f4f0] px-3 py-1.5 text-xs font-bold text-[#247866]">
+          Total: {patientGroups.length}{" "}
           {patientGroups.length === 1 ? "paciente" : "pacientes"}
         </span>
       </div>
