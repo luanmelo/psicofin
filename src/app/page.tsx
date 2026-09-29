@@ -66,11 +66,11 @@ type SessionForm = {
 
 const weekdays: Array<{ id: WeekdayId; label: string; shortLabel: string }> = [
   { id: "monday", label: "Segunda", shortLabel: "Seg" },
-  { id: "tuesday", label: "Terca", shortLabel: "Ter" },
+  { id: "tuesday", label: "Terça", shortLabel: "Ter" },
   { id: "wednesday", label: "Quarta", shortLabel: "Qua" },
   { id: "thursday", label: "Quinta", shortLabel: "Qui" },
   { id: "friday", label: "Sexta", shortLabel: "Sex" },
-  { id: "saturday", label: "Sabado", shortLabel: "Sab" },
+  { id: "saturday", label: "Sábado", shortLabel: "Sáb" },
   { id: "sunday", label: "Domingo", shortLabel: "Dom" },
 ];
 

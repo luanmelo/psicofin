@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "PsicoFin",
-  description: "Controle financeiro mensal para psicologos.",
+  description: "Controle financeiro mensal para psicólogos.",
 };
 
 export default function RootLayout({
