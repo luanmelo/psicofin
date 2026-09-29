@@ -2093,7 +2093,7 @@ function DashboardMetric({
         <div className="min-w-0">
           <p className="metric-label">{label}</p>
           <p
-            className={`mt-2 truncate text-xl font-bold tracking-[-0.02em] sm:text-2xl ${
+            className={`metric-value mt-2 text-xl font-bold tracking-[-0.02em] sm:text-2xl ${
               highlight ? "text-[#247866]" : "text-[#173a33]"
             }`}
           >

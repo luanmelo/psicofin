@@ -414,9 +414,17 @@ button:disabled {
     padding: 0.875rem;
   }
 
+  .metric-value {
+    overflow: visible;
+    font-size: clamp(0.875rem, 4.2vw, 1.125rem);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
   .metric-icon {
-    width: 36px;
-    height: 36px;
+    display: none;
   }
 }
 
