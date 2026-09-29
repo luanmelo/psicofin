@@ -40,6 +40,7 @@ import {
   updateTherapySession,
   type CompletionStore,
   type OccurrenceStatus,
+  type SessionBillingType,
   type SessionFrequency,
   type TherapySession,
   type WeekdayId,
@@ -60,6 +61,7 @@ type SessionForm = {
   patientName: string;
   sessionTime: string;
   sessionValue: string;
+  billingType: SessionBillingType;
   frequency: SessionFrequency;
   startDate: string;
 };
@@ -100,11 +102,17 @@ const frequencyLabels: Record<SessionFrequency, string> = {
   once: "Avulsa",
 };
 
+const billingTypeLabels: Record<SessionBillingType, string> = {
+  per_session: "Por sessão",
+  monthly_fixed: "Mensal fixo",
+};
+
 const initialSessionForm: SessionForm = {
   patientId: null,
   patientName: "",
   sessionTime: "14:00",
   sessionValue: "",
+  billingType: "per_session",
   frequency: "weekly",
   startDate: formatDateKey(new Date()),
 };
@@ -230,6 +238,21 @@ function formatCurrency(value: number, showValues: boolean) {
   return showValues ? currencyFormatter.format(value) : "R$ ----";
 }
 
+function formatCurrencyInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (!digits) {
+    return "";
+  }
+
+  return currencyFormatter.format(Number(digits) / 100);
+}
+
+function parseCurrencyInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits ? Number(digits) / 100 : Number.NaN;
+}
+
 function getTimeParts(time: string) {
   const [hour = "14", minute = "00"] = time.split(":");
 
@@ -270,42 +293,54 @@ function buildOccurrences(
 }
 
 function summarizeOccurrences(occurrences: SessionOccurrence[]) {
-  return occurrences.reduce(
-    (summary, occurrence) => {
-      const value = occurrence.session.sessionValue;
+  const summary = {
+    planned: 0,
+    realized: 0,
+    pending: 0,
+    realizedCharges: 0,
+    plannedSessions: 0,
+    completedSessions: 0,
+    missedSessions: 0,
+    cancelledSessions: 0,
+    pendingSessions: 0,
+  };
+  const occurrencesBySession = new Map<string, SessionOccurrence[]>();
 
-      return {
-        planned: summary.planned + value,
-        realized:
-          summary.realized +
-          (occurrence.status === "completed" || occurrence.status === "missed"
-            ? value
-            : 0),
-        pending:
-          summary.pending + (!occurrence.status ? value : 0),
-        plannedSessions: summary.plannedSessions + 1,
-        completedSessions:
-          summary.completedSessions +
-          (occurrence.status === "completed" ? 1 : 0),
-        missedSessions:
-          summary.missedSessions + (occurrence.status === "missed" ? 1 : 0),
-        cancelledSessions:
-          summary.cancelledSessions +
-          (occurrence.status === "cancelled" ? 1 : 0),
-        pendingSessions: summary.pendingSessions + (!occurrence.status ? 1 : 0),
-      };
-    },
-    {
-      planned: 0,
-      realized: 0,
-      pending: 0,
-      plannedSessions: 0,
-      completedSessions: 0,
-      missedSessions: 0,
-      cancelledSessions: 0,
-      pendingSessions: 0,
-    },
-  );
+  occurrences.forEach((occurrence) => {
+    const sessionOccurrences =
+      occurrencesBySession.get(occurrence.session.id) ?? [];
+    sessionOccurrences.push(occurrence);
+    occurrencesBySession.set(occurrence.session.id, sessionOccurrences);
+
+    summary.plannedSessions += 1;
+    summary.completedSessions += occurrence.status === "completed" ? 1 : 0;
+    summary.missedSessions += occurrence.status === "missed" ? 1 : 0;
+    summary.cancelledSessions += occurrence.status === "cancelled" ? 1 : 0;
+    summary.pendingSessions += occurrence.status ? 0 : 1;
+  });
+
+  occurrencesBySession.forEach((sessionOccurrences) => {
+    const session = sessionOccurrences[0].session;
+
+    if (session.billingType === "monthly_fixed") {
+      summary.planned += session.sessionValue;
+      summary.realized += session.sessionValue;
+      summary.realizedCharges += 1;
+      return;
+    }
+
+    sessionOccurrences.forEach((occurrence) => {
+      const isRealized =
+        occurrence.status === "completed" || occurrence.status === "missed";
+
+      summary.planned += session.sessionValue;
+      summary.realized += isRealized ? session.sessionValue : 0;
+      summary.pending += occurrence.status ? 0 : session.sessionValue;
+      summary.realizedCharges += isRealized ? 1 : 0;
+    });
+  });
+
+  return summary;
 }
 
 export default function Home() {
@@ -580,7 +615,7 @@ export default function Home() {
     event.preventDefault();
     setDataError("");
 
-    const sessionValue = Number(sessionForm.sessionValue);
+    const sessionValue = parseCurrencyInput(sessionForm.sessionValue);
 
     if (
       !sessionForm.patientName.trim() ||
@@ -606,6 +641,7 @@ export default function Home() {
       patientName: sessionForm.patientName.trim(),
       sessionTime: sessionForm.sessionTime,
       sessionValue,
+      billingType: sessionForm.billingType,
       frequency: sessionForm.frequency,
       weekday,
       startDate: sessionForm.startDate,
@@ -630,6 +666,7 @@ export default function Home() {
                   patientName: sessionInput.patientName,
                   sessionTime: sessionInput.sessionTime,
                   sessionValue,
+                  billingType: sessionInput.billingType,
                   frequency: sessionInput.frequency,
                   startDate: sessionInput.startDate,
                 }
@@ -665,7 +702,8 @@ export default function Home() {
       patientId: session.patientId,
       patientName: session.patientName,
       sessionTime: session.sessionTime,
-      sessionValue: String(session.sessionValue),
+      sessionValue: currencyFormatter.format(session.sessionValue),
+      billingType: session.billingType,
       frequency: session.frequency,
       startDate: session.startDate,
     });
@@ -684,7 +722,8 @@ export default function Home() {
       patientId: session.patientId,
       patientName: session.patientName,
       sessionTime: session.sessionTime,
-      sessionValue: String(session.sessionValue),
+      sessionValue: currencyFormatter.format(session.sessionValue),
+      billingType: "per_session",
       frequency: "once",
       startDate: defaultDate,
     });
@@ -1186,7 +1225,7 @@ export default function Home() {
               icon={<CheckCircle2 size={20} aria-hidden="true" />}
               label="Realizado"
               value={totals.realized}
-              detail={`${totals.completedSessions + totals.missedSessions} cobradas`}
+              detail={`${totals.realizedCharges} cobranças`}
               showValues={showValues}
               highlight
             />
@@ -1345,6 +1384,28 @@ export default function Home() {
                       />
                     </label>
 
+                    <label className="block">
+                      <span className="field-label">Forma de cobrança</span>
+                      <select
+                        className="field-control mt-2"
+                        value={sessionForm.billingType}
+                        onChange={(event) =>
+                          setSessionForm((current) => ({
+                            ...current,
+                            billingType: event.target.value as SessionBillingType,
+                          }))
+                        }
+                      >
+                        <option value="per_session">Por sessão</option>
+                        <option value="monthly_fixed">Mensal fixo</option>
+                      </select>
+                      <span className="mt-2 block text-xs leading-5 text-[#71847f]">
+                        {sessionForm.billingType === "monthly_fixed"
+                          ? "Cobrado uma vez no mês, mesmo quando houver faltas ou cancelamentos."
+                          : "Cobrado a cada sessão feita ou falta registrada."}
+                      </span>
+                    </label>
+
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                       <TimeSelect
                         value={sessionForm.sessionTime}
@@ -1357,20 +1418,25 @@ export default function Home() {
                       />
 
                       <label className="block">
-                        <span className="field-label">Valor</span>
+                        <span className="field-label">
+                          {sessionForm.billingType === "monthly_fixed"
+                            ? "Valor mensal"
+                            : "Valor por sessão"}
+                        </span>
                         <input
                           className="field-control mt-2"
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           value={sessionForm.sessionValue}
                           onChange={(event) =>
                             setSessionForm((current) => ({
                               ...current,
-                              sessionValue: event.target.value,
+                              sessionValue: formatCurrencyInput(
+                                event.target.value,
+                              ),
                             }))
                           }
-                          placeholder="180,00"
+                          placeholder="R$ 180,00"
                         />
                       </label>
                     </div>
@@ -1636,7 +1702,8 @@ function DayView({
                               : `${frequencyLabels[session.frequency]} desde ${formatShortDate(session.startDate)}`}
                           </span>
                           <span>
-                            {formatCurrency(session.sessionValue, showValues)}
+                            {formatCurrency(session.sessionValue, showValues)} ·{" "}
+                            {billingTypeLabels[session.billingType]}
                           </span>
                           <span>
                             {sessionOccurrences.length} ocorrência
@@ -1850,7 +1917,8 @@ function OccurrenceRow({
                 occurrence.session.sessionTime
               }`
             : `${occurrence.session.sessionTime}`}{" "}
-          · {formatCurrency(occurrence.session.sessionValue, showValues)}
+          · {formatCurrency(occurrence.session.sessionValue, showValues)} ·{" "}
+          {billingTypeLabels[occurrence.session.billingType]}
         </p>
         </div>
       </div>

@@ -11,6 +11,7 @@ export type WeekdayId =
   | "sunday";
 
 export type SessionFrequency = "weekly" | "biweekly" | "once";
+export type SessionBillingType = "per_session" | "monthly_fixed";
 export type OccurrenceStatus = "completed" | "missed" | "cancelled";
 
 export type TherapySession = {
@@ -20,6 +21,7 @@ export type TherapySession = {
   patientName: string;
   sessionTime: string;
   sessionValue: number;
+  billingType: SessionBillingType;
   frequency: SessionFrequency;
   startDate: string;
   createdAt: string;
@@ -32,6 +34,7 @@ export type SessionInput = {
   patientName: string;
   sessionTime: string;
   sessionValue: number;
+  billingType: SessionBillingType;
   frequency: SessionFrequency;
   weekday: WeekdayId;
   startDate: string;
@@ -48,6 +51,7 @@ type SessionRow = {
   weekday: WeekdayId;
   session_time: string;
   session_value: number | string;
+  billing_type: SessionBillingType;
   frequency: SessionFrequency;
   start_date: string;
   created_at: string;
@@ -84,7 +88,7 @@ export async function loadAuthenticatedWorkspace(user: User) {
       supabase
         .from("therapy_sessions")
         .select(
-          "id, patient_id, weekday, session_time, session_value, frequency, start_date, created_at",
+          "id, patient_id, weekday, session_time, session_value, billing_type, frequency, start_date, created_at",
         )
         .eq("user_id", user.id),
       supabase
@@ -123,6 +127,7 @@ export async function loadAuthenticatedWorkspace(user: User) {
       patientName: patientNames.get(session.patient_id) ?? "Paciente",
       sessionTime: session.session_time.slice(0, 5),
       sessionValue: Number(session.session_value),
+      billingType: session.billing_type,
       frequency: session.frequency,
       startDate: session.start_date,
       createdAt: session.created_at,
@@ -195,11 +200,12 @@ export async function createTherapySession(
       weekday: input.weekday,
       session_time: input.sessionTime,
       session_value: input.sessionValue,
+      billing_type: input.billingType,
       frequency: input.frequency,
       start_date: input.startDate,
     })
     .select(
-      "id, patient_id, weekday, session_time, session_value, frequency, start_date, created_at",
+      "id, patient_id, weekday, session_time, session_value, billing_type, frequency, start_date, created_at",
     )
     .single();
   throwIfError(result.error);
@@ -213,6 +219,7 @@ export async function createTherapySession(
     patientName: input.patientName,
     sessionTime: session.session_time.slice(0, 5),
     sessionValue: Number(session.session_value),
+    billingType: session.billing_type,
     frequency: session.frequency,
     startDate: session.start_date,
     createdAt: session.created_at,
@@ -232,6 +239,7 @@ export async function updateTherapySession(
       weekday: input.weekday,
       session_time: input.sessionTime,
       session_value: input.sessionValue,
+      billing_type: input.billingType,
       frequency: input.frequency,
       start_date: input.startDate,
     })

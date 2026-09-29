@@ -28,6 +28,9 @@ create table public.therapy_sessions (
   ),
   session_time time not null,
   session_value numeric(10, 2) not null check (session_value > 0),
+  billing_type text not null default 'per_session' check (
+    billing_type in ('per_session', 'monthly_fixed')
+  ),
   frequency text not null check (frequency in ('weekly', 'biweekly', 'once')),
   start_date date not null,
   created_at timestamptz not null default now(),

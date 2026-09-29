@@ -9,7 +9,7 @@ O Supabase é responsável por:
 - cadastro e login com email e senha;
 - hash e armazenamento seguro da senha pelo Supabase Auth;
 - perfil com o nome do psicólogo;
-- pacientes, sessões recorrentes ou avulsas e status dos atendimentos;
+- pacientes, sessões recorrentes ou avulsas, cobrança por sessão ou mensal e status dos atendimentos;
 - isolamento dos dados de cada usuário com Row Level Security (RLS).
 
 A aplicação não cria uma coluna de senha e nunca recebe o hash armazenado pelo Supabase.
@@ -29,7 +29,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_sua_chave
 
 Use somente a chave publicável no frontend. Nunca adicione uma chave `secret` ou `service_role` ao projeto web.
 
-Em projetos que já executaram a migração inicial, execute também as migrações posteriores, em ordem. Para adicionar o status de cancelamento, use `supabase/migrations/20260929000000_add_cancelled_occurrence_status.sql`.
+Em projetos que já executaram a migração inicial, execute também as migrações posteriores, em ordem:
+
+1. `supabase/migrations/20260929000000_add_cancelled_occurrence_status.sql`
+2. `supabase/migrations/20260929010000_add_session_billing_type.sql`
 
 Por padrão, o Supabase pode exigir confirmação por email no cadastro. Essa opção pode ser alterada em **Authentication > Providers > Email**.
 
