@@ -1064,7 +1064,7 @@ export default function Home() {
           </div>
           <div>
             <p className="text-lg font-bold tracking-tight">PsicoFin</p>
-            <p className="text-xs text-white/50">Gestão Inteligente</p>
+            <p className="text-xs text-white/50">Gestão Simplificada</p>
           </div>
         </div>
 
