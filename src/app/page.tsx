@@ -7,6 +7,8 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   Clock,
   Edit3,
@@ -134,10 +136,6 @@ function getCurrentMonth() {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getTodayWeekday(): WeekdayId {
-  return numberToWeekday[new Date().getDay()];
-}
-
 function getWeekdayLabel(weekday: WeekdayId) {
   return weekdays.find((day) => day.id === weekday)?.label ?? "";
 }
@@ -188,6 +186,38 @@ function getWeekdayFromDate(dateKey: string) {
 function formatShortDate(dateKey: string) {
   const [, month, day] = dateKey.split("-");
   return `${day}/${month}`;
+}
+
+function getWeekDates(dateKey: string) {
+  const selectedDate = parseDateKey(dateKey);
+  const mondayOffset = (selectedDate.getDay() + 6) % 7;
+  const monday = new Date(selectedDate);
+  monday.setDate(selectedDate.getDate() - mondayOffset);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    const weekDateKey = formatDateKey(date);
+
+    return {
+      dateKey: weekDateKey,
+      dayNumber: date.getDate(),
+      weekday: getWeekdayFromDate(weekDateKey),
+    };
+  });
+}
+
+function formatWeekRange(weekDates: ReturnType<typeof getWeekDates>) {
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+  });
+  const firstDate = formatter.format(parseDateKey(weekDates[0].dateKey));
+  const lastDate = formatter.format(
+    parseDateKey(weekDates[weekDates.length - 1].dateKey),
+  );
+
+  return `${firstDate} a ${lastDate}`;
 }
 
 function daysBetween(startDateKey: string, endDateKey: string) {
@@ -363,8 +393,9 @@ export default function Home() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
-  const [selectedWeekday, setSelectedWeekday] =
-    useState<WeekdayId>(getTodayWeekday);
+  const [selectedDateKey, setSelectedDateKey] = useState(() =>
+    formatDateKey(new Date()),
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [sessions, setSessions] = useState<TherapySession[]>([]);
   const [completions, setCompletions] = useState<CompletionStore>({});
@@ -454,21 +485,39 @@ export default function Home() {
     [completions, selectedMonth, sessions],
   );
 
-  const occurrencesByWeekday = useMemo(() => {
-    return weekdays.reduce(
-      (accumulator, weekday) => {
-        accumulator[weekday.id] = allOccurrences.filter(
-          (occurrence) => occurrence.session.weekday === weekday.id,
-        );
-        return accumulator;
-      },
-      {} as Record<WeekdayId, SessionOccurrence[]>,
+  const weekDates = useMemo(
+    () => getWeekDates(selectedDateKey),
+    [selectedDateKey],
+  );
+
+  const weekOccurrences = useMemo(() => {
+    const weekDateKeys = new Set(weekDates.map((date) => date.dateKey));
+    const weekMonths = Array.from(
+      new Set(weekDates.map((date) => date.dateKey.slice(0, 7))),
     );
-  }, [allOccurrences]);
+
+    return weekMonths
+      .flatMap((month) => buildOccurrences(sessions, month, completions))
+      .filter((occurrence) => weekDateKeys.has(occurrence.dateKey))
+      .sort((first, second) => {
+        const dateComparison = first.dateKey.localeCompare(second.dateKey);
+
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+
+        return first.session.sessionTime.localeCompare(
+          second.session.sessionTime,
+        );
+      });
+  }, [completions, sessions, weekDates]);
 
   const selectedOccurrences = useMemo(
-    () => occurrencesByWeekday[selectedWeekday] ?? [],
-    [occurrencesByWeekday, selectedWeekday],
+    () =>
+      weekOccurrences.filter(
+        (occurrence) => occurrence.dateKey === selectedDateKey,
+      ),
+    [selectedDateKey, weekOccurrences],
   );
 
   const totals = useMemo(
@@ -478,17 +527,17 @@ export default function Home() {
 
   const selectedDaySessions = useMemo(
     () =>
-      sessions
-        .filter(
-          (session) =>
-            session.weekday === selectedWeekday &&
-            (session.frequency !== "once" ||
-              session.startDate.startsWith(selectedMonth)),
-        )
-        .sort((first, second) =>
-          first.sessionTime.localeCompare(second.sessionTime),
-        ),
-    [selectedMonth, selectedWeekday, sessions],
+      Array.from(
+        new Map(
+          selectedOccurrences.map((occurrence) => [
+            occurrence.session.id,
+            occurrence.session,
+          ]),
+        ).values(),
+      ).sort((first, second) =>
+        first.sessionTime.localeCompare(second.sessionTime),
+      ),
+    [selectedOccurrences],
   );
 
   const isSignUp = authMode === "signUp";
@@ -631,6 +680,28 @@ export default function Home() {
     }, 0);
   }
 
+  function selectAgendaDate(dateKey: string) {
+    setSelectedDateKey(dateKey);
+    setSelectedMonth(dateKey.slice(0, 7));
+    setViewMode("day");
+  }
+
+  function changeAgendaWeek(weekOffset: number) {
+    const nextDate = parseDateKey(selectedDateKey);
+    nextDate.setDate(nextDate.getDate() + weekOffset * 7);
+    selectAgendaDate(formatDateKey(nextDate));
+  }
+
+  function changeSelectedMonth(nextMonth: string) {
+    const nextDateKey =
+      nextMonth === getCurrentMonth()
+        ? formatDateKey(new Date())
+        : `${nextMonth}-01`;
+
+    setSelectedMonth(nextMonth);
+    setSelectedDateKey(nextDateKey);
+  }
+
   function openMonthPicker() {
     const monthInput = monthInputRef.current;
 
@@ -723,7 +794,10 @@ export default function Home() {
         setSessions((currentSessions) => [...currentSessions, newSession]);
       }
 
-      setSelectedWeekday(weekday);
+      if (!editingSessionId) {
+        setSelectedDateKey(sessionInput.startDate);
+        setSelectedMonth(sessionInput.startDate.slice(0, 7));
+      }
       setViewMode("day");
       resetSessionForm();
       setIsFormOpen(false);
@@ -739,7 +813,6 @@ export default function Home() {
   }
 
   function editSession(session: TherapySession) {
-    setSelectedWeekday(session.weekday);
     setSessionForm({
       patientId: session.patientId,
       patientName: session.patientName,
@@ -756,11 +829,6 @@ export default function Home() {
   }
 
   function addOneOffSessionForPatient(session: TherapySession) {
-    const defaultDate = selectedMonth === getCurrentMonth()
-      ? formatDateKey(new Date())
-      : `${selectedMonth}-01`;
-
-    setSelectedWeekday(getWeekdayFromDate(defaultDate));
     setSessionForm({
       patientId: session.patientId,
       patientName: session.patientName,
@@ -768,7 +836,7 @@ export default function Home() {
       sessionValue: currencyFormatter.format(session.sessionValue),
       billingType: "per_session",
       frequency: "once",
-      startDate: defaultDate,
+      startDate: selectedDateKey,
     });
     setSessionFormValidation(null);
     setEditingSessionId(null);
@@ -1193,7 +1261,7 @@ export default function Home() {
                       return;
                     }
 
-                    setSelectedMonth(nextMonth);
+                    changeSelectedMonth(nextMonth);
                   }}
                   tabIndex={-1}
                   aria-hidden="true"
@@ -1311,53 +1379,74 @@ export default function Home() {
 
           <div className="scroll-mt-24" ref={workspaceViewRef}>
             {viewMode === "day" ? (
-              <nav
-                className="weekday-scroll mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-[#dfe9e5] bg-white p-2 shadow-sm shadow-[#16483c]/[0.03]"
-                aria-label="Dias da semana"
-              >
-              {weekdays.map((weekday) => {
-                const dayOccurrences = occurrencesByWeekday[weekday.id] ?? [];
-                const completedCount = dayOccurrences.filter(
-                  (occurrence) => occurrence.status === "completed",
-                ).length;
-                const missedCount = dayOccurrences.filter(
-                  (occurrence) => occurrence.status === "missed",
-                ).length;
-                const cancelledCount = dayOccurrences.filter(
-                  (occurrence) => occurrence.status === "cancelled",
-                ).length;
-                const isSelected = selectedWeekday === weekday.id;
-
-                return (
-                  <button
-                    className={`min-w-[92px] flex-1 rounded-xl px-3 py-3 text-left transition ${
-                      isSelected
-                        ? "bg-[#183f38] text-white shadow-md shadow-[#183f38]/15"
-                        : "text-[#627773] hover:bg-[#f1f7f4] hover:text-[#225e52]"
-                    }`}
-                    key={weekday.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedWeekday(weekday.id);
-                      setViewMode("day");
-                    }}
-                  >
-                    <span className="block text-sm font-bold tracking-tight">
-                      {weekday.shortLabel}
-                    </span>
-                    <span
-                      className={`mt-1 block text-[11px] ${isSelected ? "text-white/60" : "text-[#92a19e]"}`}
+              <div className="mb-6 overflow-hidden rounded-2xl border border-[#dfe9e5] bg-white shadow-sm shadow-[#16483c]/[0.03]">
+                <div className="flex items-center justify-between gap-3 border-b border-[#e5ece9] px-3 py-2.5 sm:px-4">
+                  <p className="text-xs font-bold capitalize text-[#627773]">
+                    Semana de {formatWeekRange(weekDates)}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="icon-button h-9 w-9"
+                      type="button"
+                      onClick={() => changeAgendaWeek(-1)}
+                      aria-label="Ver semana anterior"
+                      title="Semana anterior"
                     >
-                      {completedCount}/{dayOccurrences.length} feitas
-                      {missedCount ? `, ${missedCount} faltas` : ""}
-                      {cancelledCount
-                        ? `, ${cancelledCount} canceladas`
-                        : ""}
-                    </span>
-                  </button>
-                );
-              })}
-              </nav>
+                      <ChevronLeft size={17} aria-hidden="true" />
+                    </button>
+                    <button
+                      className="icon-button h-9 w-9"
+                      type="button"
+                      onClick={() => changeAgendaWeek(1)}
+                      aria-label="Ver prÃ³xima semana"
+                      title="PrÃ³xima semana"
+                    >
+                      <ChevronRight size={17} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <nav
+                  className="weekday-scroll flex gap-2 overflow-x-auto p-2"
+                  aria-label="Dias da semana"
+                >
+                  {weekDates.map((weekDate) => {
+                    const dayOccurrences = weekOccurrences.filter(
+                      (occurrence) =>
+                        occurrence.dateKey === weekDate.dateKey,
+                    );
+                    const isSelected = selectedDateKey === weekDate.dateKey;
+                    const weekday = weekdays.find(
+                      (day) => day.id === weekDate.weekday,
+                    );
+
+                    return (
+                      <button
+                        className={`min-w-[76px] flex-1 rounded-xl px-2 py-2.5 text-center transition ${
+                          isSelected
+                            ? "bg-[#183f38] text-white shadow-md shadow-[#183f38]/15"
+                            : "text-[#627773] hover:bg-[#f1f7f4] hover:text-[#225e52]"
+                        }`}
+                        key={weekDate.dateKey}
+                        type="button"
+                        onClick={() => selectAgendaDate(weekDate.dateKey)}
+                      >
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-70">
+                          {weekday?.shortLabel}
+                        </span>
+                        <span className="mt-0.5 block text-lg font-bold leading-none">
+                          {weekDate.dayNumber}
+                        </span>
+                        <span
+                          className={`mt-1.5 block text-[10px] ${isSelected ? "text-white/60" : "text-[#92a19e]"}`}
+                        >
+                          {dayOccurrences.length}{" "}
+                          {dayOccurrences.length === 1 ? "sessão" : "sessões"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
             ) : null}
 
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -1365,7 +1454,7 @@ export default function Home() {
               {viewMode === "day" ? (
                 <DayView
                   occurrences={selectedOccurrences}
-                  selectedWeekday={selectedWeekday}
+                  selectedDateKey={selectedDateKey}
                   sessions={selectedDaySessions}
                   showValues={showValues}
                   onDeleteSession={deleteSession}
@@ -1677,7 +1766,7 @@ export default function Home() {
 
 function DayView({
   occurrences,
-  selectedWeekday,
+  selectedDateKey,
   sessions,
   showValues,
   onDeleteSession,
@@ -1686,7 +1775,7 @@ function DayView({
   onSetOccurrenceStatus,
 }: {
   occurrences: SessionOccurrence[];
-  selectedWeekday: WeekdayId;
+  selectedDateKey: string;
   sessions: TherapySession[];
   showValues: boolean;
   onDeleteSession: (sessionId: string) => void;
@@ -1714,7 +1803,8 @@ function DayView({
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-[-0.02em] text-[#183a33]">
-            Agenda de {getWeekdayLabel(selectedWeekday)}
+            Agenda de {getWeekdayLabel(getWeekdayFromDate(selectedDateKey))},{" "}
+            {formatShortDate(selectedDateKey)}
           </h2>
           <p className="mt-1 text-sm text-[#71847f]">
             Abra um paciente para acompanhar os atendimentos.
@@ -1726,7 +1816,7 @@ function DayView({
       </div>
 
       {sessions.length === 0 ? (
-        <EmptyState text="Cadastre um atendimento recorrente ou uma sessão avulsa para começar." />
+        <EmptyState text="Nenhum atendimento agendado para esta data." />
       ) : (
         <div className="grid gap-3">
           {sessions.map((session) => {
@@ -1804,8 +1894,7 @@ function DayView({
                             {billingTypeLabels[session.billingType]}
                           </span>
                           <span>
-                            {sessionOccurrences.length} ocorrência
-                            {sessionOccurrences.length === 1 ? "" : "s"} no mês
+                            Atendimento em {formatShortDate(selectedDateKey)}
                           </span>
                         </div>
                       </div>
@@ -1850,7 +1939,7 @@ function DayView({
                         ))
                       ) : (
                         <p className="rounded-xl bg-[#f1f6f4] px-4 py-3 text-sm text-[#71847f]">
-                          Nenhuma data deste atendimento cai no mês selecionado.
+                          Nenhum atendimento agendado para esta data.
                         </p>
                       )}
                     </div>
