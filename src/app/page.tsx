@@ -109,6 +109,21 @@ const billingTypeLabels: Record<SessionBillingType, string> = {
   monthly_fixed: "Mensal fixo",
 };
 
+const authBenefits = [
+  {
+    title: "Agenda semanal",
+    detail: "Veja os pacientes e atendimentos de cada dia.",
+  },
+  {
+    title: "Financeiro claro",
+    detail: "Acompanhe valores previstos, realizados e pendentes.",
+  },
+  {
+    title: "Resumo por paciente",
+    detail: "Consulte sessões, ocorrências e totais em um só lugar.",
+  },
+];
+
 const initialSessionForm: SessionForm = {
   patientId: null,
   patientName: "",
@@ -957,26 +972,24 @@ export default function Home() {
               Sua rotina financeira, mais leve
             </span>
             <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.04em] xl:text-6xl">
-              Cuide da agenda. Nós organizamos os números.
+              Agenda organizada. Financeiro sob controle.
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-8 text-white/65">
-              Sessões, recebimentos e visão mensal reunidos em um painel simples
-              para você focar no que realmente importa.
+              O PsicoFin reúne seus atendimentos, ocorrências e cobranças em um
+              painel simples, feito para a rotina de psicólogos.
             </p>
           </div>
 
           <div className="relative grid max-w-xl grid-cols-3 gap-3">
-            {[
-              ["Agenda", "organizada"],
-              ["Financeiro", "em dia"],
-              ["Dados", "sincronizados"],
-            ].map(([title, detail]) => (
+            {authBenefits.map((benefit) => (
               <div
                 className="rounded-2xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur"
-                key={title}
+                key={benefit.title}
               >
-                <p className="font-semibold">{title}</p>
-                <p className="mt-1 text-xs text-white/55">{detail}</p>
+                <p className="font-semibold">{benefit.title}</p>
+                <p className="mt-2 text-xs leading-5 text-white/55">
+                  {benefit.detail}
+                </p>
               </div>
             ))}
           </div>
@@ -994,17 +1007,49 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="relative mb-8 overflow-hidden rounded-[26px] bg-[#153d36] p-5 text-white shadow-xl shadow-[#153d36]/10 lg:hidden">
+              <div className="soft-orb soft-orb-one" />
+              <div className="relative">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80">
+                  <Sparkles size={14} aria-hidden="true" />
+                  Gestão simples para sua rotina
+                </span>
+                <h1 className="mt-4 text-2xl font-semibold leading-tight tracking-[-0.03em]">
+                  Sua agenda e seu financeiro, juntos.
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-white/65">
+                  Organize sessões, acompanhe cobranças e entenda o resultado de
+                  cada paciente sem depender de planilhas.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {authBenefits.map((benefit) => (
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-white/75"
+                      key={benefit.title}
+                    >
+                      <CheckCircle2
+                        className="shrink-0 text-[#75c7b4]"
+                        size={14}
+                        aria-hidden="true"
+                      />
+                      {benefit.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="mb-8">
               <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8f4f0] text-[#247866]">
                 <Lock size={20} aria-hidden="true" />
               </span>
               <h2 className="text-3xl font-semibold tracking-[-0.03em] text-[#17332e]">
-                {isSignUp ? "Crie seu acesso" : "Que bom ter você por aqui"}
+                {isSignUp ? "Comece a usar o PsicoFin" : "Entre na sua conta"}
               </h2>
               <p className="mt-3 leading-6 text-[#6e817d]">
                 {isSignUp
-                  ? "Cadastre seus dados para sincronizar sua agenda com segurança."
-                  : "Entre para acessar sua agenda e acompanhar o mês."}
+                  ? "Crie seu acesso e organize sua agenda financeira em poucos minutos."
+                  : "Acesse sua agenda, seus pacientes e o resumo financeiro do mês."}
               </p>
             </div>
 
@@ -1093,26 +1138,31 @@ export default function Home() {
                 {isAuthenticating
                   ? "Validando..."
                   : isSignUp
-                    ? "Criar meu acesso"
+                    ? "Criar minha conta"
                     : "Entrar no PsicoFin"}
               </button>
             </form>
 
-            <button
-              className="mx-auto mt-5 block text-sm font-semibold text-[#247866] transition hover:text-[#195f52]"
-              type="button"
-              onClick={() => {
-                setAuthMode((current) =>
-                  current === "signIn" ? "signUp" : "signIn",
-                );
-                setAuthError("");
-                setAuthMessage("");
-              }}
-            >
-              {isSignUp
-                ? "Já possui uma conta? Entrar"
-                : "Ainda não possui conta? Criar acesso"}
-            </button>
+            <div className="mt-6 border-t border-[#dfe9e5] pt-5 text-center">
+              <p className="text-sm text-[#71847f]">
+                {isSignUp
+                  ? "Já utiliza o PsicoFin?"
+                  : "Primeira vez no PsicoFin?"}
+              </p>
+              <button
+                className="mt-2 text-sm font-bold text-[#247866] transition hover:text-[#195f52]"
+                type="button"
+                onClick={() => {
+                  setAuthMode((current) =>
+                    current === "signIn" ? "signUp" : "signIn",
+                  );
+                  setAuthError("");
+                  setAuthMessage("");
+                }}
+              >
+                {isSignUp ? "Entrar na minha conta" : "Criar minha conta agora"}
+              </button>
+            </div>
 
             <p className="mt-5 text-center text-xs leading-5 text-[#83938f]">
               Senha protegida e dados sincronizados entre seus dispositivos.
